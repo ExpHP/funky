@@ -1,3 +1,5 @@
+//! The heterogenous list: A variadic, type-indexed product type.
+
 use ::unary::{IsUnary, Zero, Succ};
 
 /// Empty IsHList.
@@ -28,6 +30,9 @@ impl<A, Rest: IsHList> IsHList for HCons<A, Rest> {
 
 /// Unified documentation for the inherent methods shared by `HCons` and `HNil`.
 ///
+/// **This trait is only for documentation.** To prevent you from using it in your
+/// own code, it is sealed and has an ambiguous type parameter that you cannot name.
+///
 /// This broadly documents the interface that is immediately available on
 /// any HList without needing to import any traits.
 ///
@@ -37,7 +42,9 @@ impl<A, Rest: IsHList> IsHList for HCons<A, Rest> {
 /// and ultimately, those methods are really not designed for direct use by the
 /// user (only for generic bounds). You should consider the signatures here to
 /// represent the true public API of HLists.
-pub trait HListDocumentation {
+pub trait HListDocumentation<IgnoreMePlease: private::Unnameable>
+        : Sized
+        + private::Sealed {
     /// Borrow the value at a position.
     ///
     /// The index is checked at compile time.
@@ -134,8 +141,24 @@ pub trait HListDocumentation {
     { Self::static_sculptor() }
 }
 
-impl<A, Rest: IsHList> HListDocumentation for HCons<A, Rest> { }
-impl HListDocumentation for HNil { }
+impl<List: private::Sealed> HListDocumentation<private::Ambiguous1> for List { }
+impl<List: private::Sealed> HListDocumentation<private::Ambiguous2> for List { }
+
+type A1 = private::Ambiguous1;
+mod private {
+    use super::*;
+
+    pub struct Ambiguous1 {}
+    pub struct Ambiguous2 {}
+
+    pub trait Unnameable {}
+    impl Unnameable for Ambiguous1 {}
+    impl Unnameable for Ambiguous2 {}
+
+    pub trait Sealed: IsHList {}
+    impl Sealed for HNil {}
+    impl<A, Rest: IsHList> Sealed for HCons<A, Rest> {}
+}
 
 //----------------------------------------------------------------------------
 
@@ -151,19 +174,19 @@ macro_rules! gen_stubs {
             #[inline(always)]
             pub fn at<I: IsUnary>(&self, index: I) -> &<Self as At<I>>::Value
             where Self: At<I>,
-            { HListDocumentation::at::<I>(self, index) }
+            { HListDocumentation::<A1>::at::<I>(self, index) }
 
             /// See [`HListDocumentation::at_mut`](../struct.HListDocumentation.html#method.at_mut).
             #[inline(always)]
             pub fn at_mut<I: IsUnary>(&mut self, index: I) -> &mut <Self as At<I>>::Value
             where Self: At<I>,
-            { HListDocumentation::at_mut::<I>(self, index) }
+            { HListDocumentation::<A1>::at_mut::<I>(self, index) }
 
             /// See [`HListDocumentation::pop_at`](../struct.HListDocumentation.html#method.pop_at).
             #[inline(always)]
             pub fn pop_at<I: IsUnary>(self, index: I) -> (TyAt<I, Self>, TyPopAtRemainder<I, Self>)
             where Self: PopAt<I>,
-            { HListDocumentation::pop_at::<I>(self, index) }
+            { HListDocumentation::<A1>::pop_at::<I>(self, index) }
 
             /// See [`HListDocumentation::pop_at`](../struct.HListDocumentation.html#method.pop_at).
             #[inline(always)]
@@ -172,19 +195,19 @@ macro_rules! gen_stubs {
                 sculptor: S,
             ) -> (TySculptAt<S, Self>, TySculptAtRemainder<S, Self>)
             where Self: SculptAt<S>,
-            { HListDocumentation::sculpt_at::<S>(self, sculptor) }
+            { HListDocumentation::<A1>::sculpt_at::<S>(self, sculptor) }
 
             /// See [`HListDocumentation::pop_at`](../struct.HListDocumentation.html#method.pop_at).
             #[inline(always)]
             pub fn index_of<T, Index: IsUnary>(&self) -> Index
             where Self: Locate<T, Index>,
-            { HListDocumentation::index_of::<T, Index>(self) }
+            { HListDocumentation::<A1>::index_of::<T, Index>(self) }
 
             /// See [`HListDocumentation::pop_at`](../struct.HListDocumentation.html#method.pop_at).
             #[inline(always)]
             pub fn sculptor_of<Ts: IsHList, S: IsSculptor>(&self) -> S
             where Self: Sculpt<Ts, S>,
-            { HListDocumentation::sculptor_of::<Ts, S>(self) }
+            { HListDocumentation::<A1>::sculptor_of::<Ts, S>(self) }
         }
     };
 }
@@ -450,22 +473,7 @@ fn test_reuse_index() {
 /// To sculpt the list `HList![C, B, A]`, the pop-sequence is `HList![P2, P1, P0]`.
 /// To sculpt the list `HList![A, B, C]`, however, the pop-sequence is `HList![P0, P0, P0]`.
 #[derive(Debug, Copy, Clone, Default)]
-pub struct PopSeq<Idxs>(Idxs);
-
-impl<Idxs> PopSeq<Idxs> {
-    // NOTE: This name **does not** contain "pop seq" because it would stutter
-    //       when written as `PopSeq::new(idxs)`.
-    /// Construct from a sequence of PopAt indices.
-    #[inline(always)]
-    pub fn new(seq: Idxs) -> Self
-    { PopSeq(seq) }
-
-    // NOTE: This name **does** contain "pop seq" to serve as a reminder.
-    /// Get the sequence of PopAt indices.
-    #[inline(always)]
-    pub fn pop_seq(self) -> Idxs
-    { self.0 }
-}
+pub struct PopSeq<Idxs>(pub Idxs);
 
 pub trait IsSculptor { }
 
@@ -479,7 +487,7 @@ impl<List: IsHList> IsSculptor for PopSeq<List> { }
 
 pub type TySculptRemainder<Ts, Is, List> = <List as Sculpt<Ts, Is>>::Remainder;
 pub trait Sculpt<Targets, S: IsSculptor>: Sized + IsHList {
-    type Remainder;
+    type Remainder: IsHList;
 
     fn sculpt(self) -> (Targets, Self::Remainder);
 
