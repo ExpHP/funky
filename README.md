@@ -30,7 +30,7 @@ assert_eq!(list_b.sculpt_at(sculptor), list_b.sculpt_at(sculptor));
 ### Coproduct subsetting (`sculpt`) and supersetting (`embed`)
 
 `sculpt` can turn `Coprod![A, B, C, D, E]` into `Either<Coprod![C, A, E]>, Coprod![B, D]>`.  
-`embed` can turn `Either<Coprod![C, A, C, E]>` into `Coprod![A, B, C, D, E]`.
+`embed` can turn `Coprod![C, A, E]` into `Coprod![A, B, C, D, E]`.
 
 (actually wait a second, isn't `embed` just a special case of `sculpt` where the remainder is void?)  
 (ehhhhhhh I'll do something about that later)
