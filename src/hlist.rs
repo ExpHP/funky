@@ -69,6 +69,36 @@ pub trait HListDocumentation<IgnoreMePlease: private::Unnameable>
     where Self: PopAt<I>,
     { PopAt::pop_at(self, index) }
 
+    /// Borrow a value of a given type, typically through type inference.
+    ///
+    /// TODO examples
+    /// TODO turbofish usage
+    /// TODO behavior when there's more than one value of type T
+    #[inline(always)]
+    fn locate<T, I: IsUnary>(&self) -> &T
+    where Self: Locate<T, I>,
+    { Locate::locate(self) }
+
+    /// Mutably borrow a value by type.
+    ///
+    /// TODO examples
+    /// TODO turbofish usage
+    /// TODO behavior when there's more than one value of type T
+    #[inline(always)]
+    fn locate_mut<T, I: IsUnary>(&mut self) -> &mut T
+    where Self: Locate<T, I>,
+    { Locate::locate_mut(self) }
+
+    /// Remove a value by type.
+    ///
+    /// TODO examples
+    /// TODO turbofish usage
+    /// TODO behavior when there's more than one value of type T
+    #[inline(always)]
+    fn pluck<T, I: IsUnary>(self) -> (T, TyPluckRemainder<T, I, Self>)
+    where Self: Pluck<T, I>,
+    { Pluck::pluck(self) }
+
     /// Sculpt using indices previously obtained via `sculptor_of::<Ts, _>()`.
     ///
     /// The input is checked at compile time, and the output type is determined
@@ -170,6 +200,10 @@ macro_rules! gen_stubs {
             //       that the methods of Documentation are properly typechecked to be
             //       consistent with the exposed API.
 
+            // NOTE: PLEASE DO explicitly specify type params via turbofish in each
+            //       method body, to ensure that the order of the type params is consistent
+            //       between this impl and the method on HListDocumentation.
+
             /// See [`HListDocumentation::at`](../struct.HListDocumentation.html#method.at).
             #[inline(always)]
             pub fn at<I: IsUnary>(&self, index: I) -> &<Self as At<I>>::Value
@@ -187,6 +221,36 @@ macro_rules! gen_stubs {
             pub fn pop_at<I: IsUnary>(self, index: I) -> (TyAt<I, Self>, TyPopAtRemainder<I, Self>)
             where Self: PopAt<I>,
             { HListDocumentation::<A1>::pop_at::<I>(self, index) }
+
+            /// Borrow a value of a given type, typically through type inference.
+            ///
+            /// TODO examples
+            /// TODO turbofish usage
+            /// TODO behavior when there's more than one value of type T
+            #[inline(always)]
+            pub fn locate<T, I: IsUnary>(&self) -> &T
+            where Self: Locate<T, I>,
+            { HListDocumentation::<A1>::locate::<T, I>(self) }
+
+            /// Mutably borrow a value by type.
+            ///
+            /// TODO examples
+            /// TODO turbofish usage
+            /// TODO behavior when there's more than one value of type T
+            #[inline(always)]
+            pub fn locate_mut<T, I: IsUnary>(&mut self) -> &mut T
+            where Self: Locate<T, I>,
+            { HListDocumentation::<A1>::locate_mut::<T, I>(self) }
+
+            /// Remove a value by type.
+            ///
+            /// TODO examples
+            /// TODO turbofish usage
+            /// TODO behavior when there's more than one value of type T
+            #[inline(always)]
+            pub fn pluck<T, I: IsUnary>(self) -> (T, TyPluckRemainder<T, I, Self>)
+            where Self: Pluck<T, I>,
+            { HListDocumentation::<A1>::pluck::<T, I>(self) }
 
             /// See [`HListDocumentation::pop_at`](../struct.HListDocumentation.html#method.pop_at).
             #[inline(always)]
@@ -255,7 +319,7 @@ where Rest: At<N, Value=V>,
 
 //----------------------------------------------------------------------------
 
-pub type TyPopAtRemainder<N, List> = PluckRemainderT<TyAt<N, List>, N, List>;
+pub type TyPopAtRemainder<N, List> = TyPluckRemainder<TyAt<N, List>, N, List>;
 pub trait PopAt<Index: IsUnary>
         : Sized
         + At<Index>
@@ -279,27 +343,27 @@ fn indexing_ops_dont_require_type_inference() {
 
     // Types
     let mut abc = hlist![A, B, C];
-    abc.at(P0).is_known_to_be_ref(&A);
-    abc.at(P1).is_known_to_be_ref(&B);
-    abc.at(P2).is_known_to_be_ref(&C);
-    abc.at_mut(P0).is_known_to_be_mut(&mut A);
-    abc.at_mut(P1).is_known_to_be_mut(&mut B);
-    abc.at_mut(P2).is_known_to_be_mut(&mut C);
+    abc.at(P0).assert_type_ref(&A);
+    abc.at(P1).assert_type_ref(&B);
+    abc.at(P2).assert_type_ref(&C);
+    abc.at_mut(P0).assert_type_mut(&mut A);
+    abc.at_mut(P1).assert_type_mut(&mut B);
+    abc.at_mut(P2).assert_type_mut(&mut C);
 
     let (a, hlist_pat![b, c]) = abc.clone().pop_at(P0);
-    a.is_known_to_be(A);
-    b.is_known_to_be(B);
-    c.is_known_to_be(C);
+    a.assert_type(A);
+    b.assert_type(B);
+    c.assert_type(C);
 
     let (b, hlist_pat![a, c]) = abc.clone().pop_at(P1);
-    a.is_known_to_be(A);
-    b.is_known_to_be(B);
-    c.is_known_to_be(C);
+    a.assert_type(A);
+    b.assert_type(B);
+    c.assert_type(C);
 
     let (c, hlist_pat![a, b]) = abc.clone().pop_at(P2);
-    a.is_known_to_be(A);
-    b.is_known_to_be(B);
-    c.is_known_to_be(C);
+    a.assert_type(A);
+    b.assert_type(B);
+    c.assert_type(C);
 }
 
 #[test]
@@ -344,7 +408,7 @@ pub trait Locate<T, Index: IsUnary>: IsHList {
     fn locate_mut(&mut self) -> &mut T;
 }
 
-pub type PluckRemainderT<T, N, List> = <List as Pluck<T, N>>::Remainder;
+pub type TyPluckRemainder<T, N, List> = <List as Pluck<T, N>>::Remainder;
 
 /// Trait for removing items by type.
 ///
@@ -411,16 +475,16 @@ fn test_single_type_lookup() {
     let &mut C = hlist![A, B, C].locate_mut();
 
     let (A, hlist_pat![r1, r2]) = hlist![A, B, C].pluck();
-    r1.is_known_to_be(B);
-    r2.is_known_to_be(C);
+    r1.assert_type(B);
+    r2.assert_type(C);
 
     let (B, hlist_pat![r1, r2]) = hlist![A, B, C].pluck();
-    r1.is_known_to_be(A);
-    r2.is_known_to_be(C);
+    r1.assert_type(A);
+    r2.assert_type(C);
 
     let (C, hlist_pat![r1, r2]) = hlist![A, B, C].pluck();
-    r1.is_known_to_be(A);
-    r2.is_known_to_be(B);
+    r1.assert_type(A);
+    r2.assert_type(B);
 
     // TODO: compile-fail
     // let &A = hlist![A, A].locate(); //~ ERROR type annotations required
@@ -434,12 +498,12 @@ fn test_reuse_index() {
     let abc = hlist![A, B, C];
     let mut def = hlist![D, E, F];
 
-    def.at(abc.index_of::<A, _>()).is_known_to_be_ref(&D);
-    def.at(abc.index_of::<B, _>()).is_known_to_be_ref(&E);
-    def.at(abc.index_of::<C, _>()).is_known_to_be_ref(&F);
-    def.at_mut(abc.index_of::<A, _>()).is_known_to_be_mut(&mut D);
-    def.at_mut(abc.index_of::<B, _>()).is_known_to_be_mut(&mut E);
-    def.at_mut(abc.index_of::<C, _>()).is_known_to_be_mut(&mut F);
+    def.at(abc.index_of::<A, _>()).assert_type_ref(&D);
+    def.at(abc.index_of::<B, _>()).assert_type_ref(&E);
+    def.at(abc.index_of::<C, _>()).assert_type_ref(&F);
+    def.at_mut(abc.index_of::<A, _>()).assert_type_mut(&mut D);
+    def.at_mut(abc.index_of::<B, _>()).assert_type_mut(&mut E);
+    def.at_mut(abc.index_of::<C, _>()).assert_type_mut(&mut F);
 
     // TODO: compile-fail
     // let index = hlist![A, B, C].index_of::<A, _>();
@@ -523,7 +587,7 @@ where
     fn static_sculptor() -> PopSeq<HCons<N, Ns>>
     {
         let idx = <Self>::static_index();
-        let PopSeq(idxs) = <PluckRemainderT<T, N, Self>>::static_sculptor();
+        let PopSeq(idxs) = <TyPluckRemainder<T, N, Self>>::static_sculptor();
         PopSeq(HCons(idx, idxs))
     }
 }
@@ -573,9 +637,9 @@ fn sculpt_at_doesnt_require_type_inference() {
     let sculptor = abcde.sculptor_of::<HList![C, A, D], _>();
 
     let (hlist_pat![c, a, d], hlist_pat![b, e]) = abcde.sculpt_at(sculptor);
-    a.is_known_to_be(A);
-    b.is_known_to_be(B);
-    c.is_known_to_be(C);
-    d.is_known_to_be(D);
-    e.is_known_to_be(E);
+    a.assert_type(A);
+    b.assert_type(B);
+    c.assert_type(C);
+    d.assert_type(D);
+    e.assert_type(E);
 }
